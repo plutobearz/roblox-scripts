@@ -1,22 +1,70 @@
 --!strict
 local getgenv: () -> ({[string]: any}) = getfenv().getgenv
 
-getgenv().ScriptVersion = "v0.3.0a"
-
-getgenv().Changelog = [[
-v0.3.0a
-- Added plant type specific position reuse
-v0.2.0a
-- Added reuse of plant vectors for replanting
-]]
-
-do
-  local Core = loadstring(game:HttpGet("https://raw.githubusercontent.com/x2zu/loader/refs/heads/main/LunaUI.lua"))
-  if not Core then return warn("Failed to load the Cheese Core") end
-  Core()
+if not getgenv().ScriptVersion then
+	getgenv().ScriptVersion = "Dev Mode"
 end
 
--- Types
+local StartLoadTime = tick()
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local UserInputService = game:GetService("UserInputService")
+
+local Player = Players.LocalPlayer
+
+local PlaceName: string = getgenv().PlaceName or game:GetService("AssetService"):GetGamePlacesAsync(game.GameId):GetCurrentPage()[1].Name
+
+local queue_on_teleport: (Code: string) -> () = getfenv().queue_on_teleport
+local firesignal: (RBXScriptSignal) -> () = getfenv().firesignal
+
+getgenv().Connections = getgenv().Connections or {}
+
+local function HandleConnection(Connection: RBXScriptConnection?, Name: string)
+	if getgenv().Connections[Name] then
+		getgenv().Connections[Name]:Disconnect()
+	end
+
+	getgenv().Connections[Name] = Connection
+end
+
+getgenv().HandleConnection = HandleConnection
+
+if not getgenv().PlaceFileName then
+	local PlaceFileName = PlaceName:gsub("%b[]", "")
+	PlaceFileName = PlaceFileName:gsub("[^%a]", "")
+	getgenv().PlaceFileName = PlaceFileName
+end
+
+local OriginalFlags = {}
+
+if getgenv().Flags then
+	for FlagName: string, FlagInfo in getgenv().Flags do
+		if typeof(FlagInfo.CurrentValue) ~= "boolean" then
+			continue
+		end
+
+		OriginalFlags[FlagName] = FlagInfo.CurrentValue
+		FlagInfo:Set(false)
+	end
+end
+
+repeat
+	Luna = loadstring(game:HttpGet("https://github.com/aw4e/Cheese/raw/dev/Luna.lua"))
+	
+	if Luna then
+		Luna = Luna()
+	end
+	
+	if not Luna then
+		warn("[x2molly]: Failed to load Luna, retrying")
+	end
+	
+	task.wait()
+until Luna
+
+getgenv().Initiated = nil
 
 type Element = {
 	CurrentValue: any,
@@ -24,310 +72,399 @@ type Element = {
 	Set: (self: Element, any) -> ()
 }
 
-type Flags = {[string]: Element}
-
-type Tab = {
-	CreateSection: (self: Tab, Name: string) -> Element,
-	CreateDivider: (self: Tab) -> Element,
-	CreateToggle: (self: Tab, any) -> Element,
-	CreateSlider: (self: Tab, any) -> Element,
-	CreateDropdown: (self: Tab, any) -> Element,
-	CreateButton: (self: Tab, any) -> Element,
-	CreateLabel: (self: Tab, any, any?) -> Element,
-	CreateParagraph: (self: Tab, any) -> Element,
+type Flags = {
+	[string]: Element
 }
 
--- Variable
-
-local Notify: (Title: string, Content: string, Image: string?) -> () = getgenv().Notify
-local CreateFeature: (Tab: Tab, FeatureName: string) -> () = getgenv().CreateFeature
-
-local Player = game:GetService("Players").LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local Backpack = Player.Backpack
-local PlayerGui = Player:WaitForChild("PlayerGui")
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local GameEvents = ReplicatedStorage:WaitForChild("GameEvents")
-
-local Farms = workspace:WaitForChild("Farm")
-
--- Functions
-
-local function GetFarm()
-	for _, F in ipairs(Farms:GetChildren()) do
-		local Owner = F.Important.Data.Owner.Value
-		if Owner == Player.Name then return F end
-	end
-end
-
-local Farm = GetFarm()
-local PlantLocations = Farm.Important.Plant_Locations
-local PlantsPhysical = Farm.Important.Plants_Physical
-
-local function GetPlantPositionByType(PlantType)
-	for _, Plant in ipairs(PlantsPhysical:GetChildren()) do
-		if Plant:IsA("Model") then
-			local PlantName = Plant.Name
-			if PlantName:lower():find(PlantType:lower()) then
-				return Plant:GetPivot().Position
-			end
-		end
-	end
-	return nil
-end
-
-local function GetRandomPoint(Base)
-	local Pivot, Size = Base:GetPivot(), Base.Size
-	local Margin = 0.1
-	local X = math.random() * (1 - Margin * 2) + Margin
-	local Z = math.random() * (1 - Margin * 2) + Margin
-	return Vector3.new(
-		Pivot.X - Size.X / 2 + X * Size.X,
-		4,
-		Pivot.Z - Size.Z / 2 + Z * Size.Z
-	)
-end
-
-local function GetOwnedSeeds()
-	local Seeds = {}
-	for _, Container in ipairs({Backpack, Character}) do
-		for _, Tool in ipairs(Container:GetChildren()) do
-			if Tool:IsA("Tool") and Tool:GetAttribute("ItemType") == "Seed" then
-				local Name = Tool:GetAttribute("ItemName") or Tool:GetAttribute("Seed")
-				Seeds[Name] = { Tool = Tool, Count = Tool:GetAttribute("Quantity") or 1 }
-			end
-		end
-	end
-	return Seeds
-end
-
-local function EquipTool(Tool)
-	local Hum = Character:FindFirstChildOfClass("Humanoid")
-	if Hum and Tool.Parent == Backpack then Hum:EquipTool(Tool) end
-end
-
-local SeedLabelMap, GearLabelMap, SeedStock, GearStock = {}, {}, {}, {}
-local RarityOrder = {Common=1, Uncommon=2, Rare=3, Legendary=4, Mythical=5, Divine=6}
-
-local function ParseShopItems(ShopName, LabelMap, StockMap, Filter)
-	local Shop = PlayerGui:WaitForChild(ShopName)
-	local Items = Shop.Frame.ScrollingFrame
-	local List = {}
-
-	for _, Item in ipairs(Items:GetChildren()) do
-		local Main = Item:FindFirstChild("Main_Frame")
-		if not Main then continue end
-
-		local Stock = tonumber(Main.Stock_Text.Text:match("%d+")) or 0
-		if Filter and Stock <= 0 then continue end
-
-		local Rarity = Main.Rarity_Text.Text
-		local Label = Item.Name .. " [" .. Rarity .. "]"
-		table.insert(List, {Label = Label, Rarity = Rarity})
-		LabelMap[Label] = Item.Name
-		StockMap[Label] = Stock
+local function Notify(Title: string, Content: string, Image: string, Source: string)
+	if not Luna then
+		return
 	end
 
-	table.sort(List, function(A, B) return (RarityOrder[A.Rarity] or 99) < (RarityOrder[B.Rarity] or 99) end)
-	local Display = {}; for _, V in ipairs(List) do table.insert(Display, V.Label) end
-	return Display
+	Luna:Notification({
+		Title = Title,
+    Icon = Image or "notifications_active",
+    ImageSource = Source or "Material",
+    Content = Content,
+	})
 end
 
-local function BuyAll(LabelMap, StockMap, Selected, EventName)
-	for _, Label in ipairs(Selected or {}) do
-		local Item, Stock = LabelMap[Label], StockMap[Label]
-		if Item and Stock and Stock > 0 then
-			for _ = 1, Stock do GameEvents[EventName]:FireServer(Item) end
-		end
-	end
-end
+getgenv().Notify = Notify
 
--- Features
+local Flags: Flags = Luna.Options
 
-local Flags: Flags = getgenv().Flags
+getgenv().Flags = Flags
 
-local Window = getgenv().Window
+local Window = Luna:CreateWindow({
+  Name = `x2molly's Hub | {PlaceName}`,
+  Subtitle = `{ScriptVersion or "Dev Mode"}`,
+  LogoID = "82795327169782",
+  LoadingEnabled = true,
+  LoadingTitle = `x2molly's {ScriptVersion or "Dev Mode"}`,
+  LoadingSubtitle = PlaceName,
+  ConfigSettings = {
+		RootFolder = "x2molly",
+		ConfigFolder = `{getgenv().PlaceFileName}-{Player.Name}`,
+		AutoLoadConfig = true,
+	},
+})
+
+getgenv().Window = Window
 
 local Tab: Tab = Window:CreateTab({
-	Name = "Automation",
-	Icon = "code",
+	Name = "Home",
+	Icon = "dashboard",
+	ImageSource = "Material",
+	ShowTitle = true,
+})
+
+Tab:CreateSection("Change Log")
+
+Tab:CreateParagraph({
+	Title = `{PlaceName} | {ScriptVersion}`,
+	Text = getgenv().Changelog or "No changelog found",
+})
+
+Tab:CreateSection("Performance")
+
+local PingLabel = Tab:CreateLabel({
+	Text = "Ping: 0 ms",
+	Style = 1,
+	Icon = "wifi",
 	ImageSource = "Lucide",
-	ShowTitle = false
+})
+local FPSLabel = Tab:CreateLabel({
+	Text = "FPS: 0/s",
+	Style = 1,
+	Icon = "monitor",
+	ImageSource = "Lucide",
 })
 
-Tab:CreateSection("Plant's")
-
-Tab:CreateToggle({
-  Name = "Use Existing Plant Positions",
-  Description = "Reuse positions where plants were previously located",
-  Default = true,
-  Callback = function()end
-}, "UseExistingPositions")
-
-Tab:CreateToggle({
-  Name = "Auto Plant Seeds",
-  Callback = function()
-    while Flags.AutoPlantSeeds.CurrentValue and task.wait(.1) do
-      local Seeds = GetOwnedSeeds()
-      if not next(Seeds) then continue end
-
-      local FarmLand = PlantLocations:GetChildren()
-
-      for Name, Seed in pairs(Seeds) do
-        EquipTool(Seed.Tool)
-        task.wait(.2)
-
-        local Pos
-
-        if Flags.UseExistingPositions.CurrentValue then
-					Pos = GetPlantPositionByType(Name)
-        end
-
-        if not Pos then
-					Pos = GetRandomPoint(FarmLand[math.random(#FarmLand)])
-        end
-
-        for i = 1, Seed.Count do
-					GameEvents.Plant_RE:FireServer(Pos, Name)
-					task.wait(.5)
-        end
-      end
-    end
-  end
-}, "AutoPlantSeeds")
-
-Tab:CreateButton({
-	Name = "Free Trowel",
-	Description = "Get a free trowel",
-	Callback = function()
-		local Tool = Instance.new("Tool")
-		Tool.Name = "Trowel"
-		Tool.RequiresHandle = true
-
-		local handle = Instance.new("Part")
-		handle.Name = "Handle"
-		handle.Size = Vector3.new(1,1,1)
-		handle.Color = Color3.new(0.5, 0.5, 0.5)
-		handle.CanCollide = false
-		handle.Anchored = false
-		handle.Parent = Tool
-
-		Tool.Parent = Backpack
-	end
-})
-
-local Tab: Tab = Window:CreateTab({
-  Name = "Shop",
-  Icon = "shopping-cart",
-  ImageSource = "Lucide",
-  ShowTitle = false
-})
-
-Tab:CreateSection("Seed's")
-
-Tab:CreateDropdown({
-  Name = "Select Seed",
-  Description = "Select the seed you want to buy",
-  Options = ParseShopItems("Seed_Shop", SeedLabelMap, SeedStock, false),
-  CurrentOption = {},
-  MultipleOptions = true,
-  SpecialType = nil,
-  Callback = function()end
-}, "SelectSeed")
-
-Tab:CreateToggle({
-  Name = "Show Available Seeds",
-  Callback = function()
-    local Filter = Flags.ShowAvailableSeeds.CurrentValue
-    local Options = ParseShopItems("Seed_Shop", SeedLabelMap, SeedStock, Filter)
-    Flags.SelectSeed:Set({
-      Options = Options,
-      CurrentOption = {},
-    })
-  end
-}, "ShowAvailableSeeds")
-
-Tab:CreateToggle({
-  Name = "Auto Buy Seed",
-  Callback = function()
-    while Flags.AutoBuySeed.CurrentValue and task.wait(.1) do
-      local Selected = Flags.SelectSeed.CurrentOption
-      BuyAll(SeedLabelMap, SeedStock, Selected, "BuySeedStock")
-    end
-  end
-}, "AutoBuySeed")
-
-Tab:CreateSection("Gear's")
-
-Tab:CreateDropdown({
-  Name = "Select Gear",
-  Description = "Select the gear you want to buy",
-  Options = ParseShopItems("Gear_Shop", GearLabelMap, GearStock, false),
-  CurrentOption = {},
-  MultipleOptions = true,
-  SpecialType = nil,
-  Callback = function()end
-}, "SelectGear")
-
-Tab:CreateToggle({
-  Name = "Show Available Gear",
-  Callback = function()
-    local Filter = Flags.ShowAvailableGear.CurrentValue
-    local Options = ParseShopItems("Gear_Shop", GearLabelMap, GearStock, Filter)
-    Flags.SelectGear:Set({
-      Options = Options,
-      CurrentOption = {},
-    })
-  end
-}, "ShowAvailableGear")
-
-Tab:CreateToggle({
-  Name = "Auto Buy Gear",
-  Callback = function()
-    while Flags.AutoBuyGear.CurrentValue and task.wait(.1) do
-      local Selected = Flags.SelectGear.CurrentOption
-      BuyAll(GearLabelMap, GearStock, Selected, "BuyGearStock")
-    end
-  end
-}, "AutoBuyGear")
+local Stats = game:GetService("Stats")
 
 task.spawn(function()
-  while true and task.wait(1) do
-    ParseShopItems("Seed_Shop", SeedLabelMap, SeedStock, Flags.ShowAvailableSeeds.CurrentValue)
-    ParseShopItems("Gear_Shop", GearLabelMap, GearStock, Flags.ShowAvailableGear.CurrentValue)
-  end
+	while getgenv().Flags == Flags and task.wait(0.25) do
+		PingLabel:Set(`Ping: {math.floor(Stats.PerformanceStats.Ping:GetValue() * 100) / 100} ms`)
+		FPSLabel:Set(`FPS: {math.floor(1 / Stats.FrameTime * 10) / 10}/s`)
+	end
 end)
 
-local Tab: Tab = Window:CreateTab({
-	Name = "QoL",
-	Icon = "leaf",
-	ImageSource = "Lucide",
-	ShowTitle = false
-})
+Tab:CreateDivider()
 
-Tab:CreateSection("QoL")
+local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
-CreateFeature(Tab, "QoL")
+local LastProtected
 
-local Tab: Tab = Window:CreateTab({
-	Name = "Safety",
+HandleConnection(Player.Idled:Connect(function()
+	VirtualUser:CaptureController()
+	VirtualUser:ClickButton2(Vector2.zero)
+	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightMeta, false, game)
+	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightMeta, false, game)
+
+	LastProtected = tick()
+end), "AntiAFK")
+
+local AFKMessage = "Anti AFK Protected You:"
+
+local AntiAFKLabel = Tab:CreateLabel({
+	Text = `{AFKMessage} Never`,
+	Style = 2,
 	Icon = "shield",
 	ImageSource = "Material",
-	ShowTitle = false
 })
 
-Tab:CreateSection("Identity")
+task.spawn(function()
+	while getgenv().Flags == Flags and task.wait(1) do
+		if not LastProtected then
+			continue
+		end
+		
+		AntiAFKLabel:Set(`{AFKMessage} {math.floor(tick() - LastProtected)} seconds ago`)
+	end
+end)
 
-CreateFeature(Tab, "HideIdentity")
-
-local Tab: Tab = Window:CreateTab({
-	Name = "Settings",
-	Icon = "settings",
+local PlaytimeMessage = "Time Spent In Session:"
+local PlaytimeLabel = Tab:CreateLabel({
+	Text = `{PlaytimeMessage} 0 seconds`,
+	Style = 1,
+	Icon = "timer",
 	ImageSource = "Lucide",
-	ShowTitle = false
 })
 
-Tab:BuildConfigSection()
+task.spawn(function()
+	while getgenv().Flags == Flags and task.wait(1) do
+		PlaytimeLabel:Set(`{PlaytimeMessage} {math.floor(tick() - StartLoadTime)} seconds`)
+	end
+end)
 
-getgenv().CreateUniversalTabs()
+local StarterPlayer = game:GetService("StarterPlayer")
+
+local SpeedConnection: RBXScriptConnection?
+local ConnectedHumanoid
+
+local function SetSpeed()
+	local Character = Player.Character
+
+	if not Character then
+		return
+	end
+
+	local Humanoid: Humanoid = Character:FindFirstChild("Humanoid")
+
+	if not Humanoid then
+		return
+	end
+	
+	if Flags.ChangeSpeed.CurrentValue then
+		Humanoid.WalkSpeed = Flags.Speed.CurrentValue
+	else
+		Humanoid.WalkSpeed = StarterPlayer.CharacterWalkSpeed
+	end
+	
+	if not SpeedConnection then
+		SpeedConnection = Humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(SetSpeed)
+		ConnectedHumanoid = Humanoid
+		HandleConnection(SpeedConnection, "WalkSpeedConnection")
+	end
+end
+
+HandleConnection(Player.CharacterAdded:Connect(function()
+	if SpeedConnection then
+		SpeedConnection:Disconnect()
+		SpeedConnection = nil
+	end
+
+	SetSpeed()
+end), "WalkSpeedCharacterAdded")
+
+local Connections = {}
+
+local OriginalText: {[TextLabel]: string} = {}
+
+local function HandleUsernameChange(Object)
+	if not Flags.HideIdentity.CurrentValue then
+		return
+	end
+
+	if not Object:IsA("TextLabel") and not Object:IsA("TextBox") and not Object:IsA("TextButton") then
+		return
+	end
+
+	local NameReplacement = Flags.NameReplacement.CurrentValue
+
+	if not Connections[Object] then
+		Connections[Object] = Object:GetPropertyChangedSignal("Text"):Connect(function()
+			HandleUsernameChange(Object)
+		end)
+	end
+
+	if Object.Text:find(Player.Name) then
+		OriginalText[Object] = Object.Text
+		Object.Text = Object.Text:gsub(Player.Name, NameReplacement)
+	elseif Object.Text:find(Player.DisplayName) then
+		OriginalText[Object] = Object.Text
+		Object.Text = Object.Text:gsub(Player.DisplayName, NameReplacement)
+	end
+end
+
+local SpacePressed = false
+
+HandleConnection(UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Space then
+		SpacePressed = true
+		if Flags.InfJump and Flags.InfJump.CurrentValue and SpacePressed then
+			if Player.Character then
+				local Humanoid = Player.Character:FindFirstChildWhichIsA("Humanoid")
+				if Humanoid then
+					Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+				end
+			end
+		end
+	end
+end), "InputBeganConnection")
+
+HandleConnection(UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Space then
+		SpacePressed = false
+	end
+end), "InputEndedConnection")
+
+local DescendantAddedConnection
+local InfJumpConnection = nil
+
+type FeaturesList = {
+	[string]: {
+		{
+			Element: string,
+			Info: {}
+		}
+	}
+}
+
+local Features: FeaturesList = {
+	QoL = {
+		{
+			Element = "Toggle",
+			Info = {
+				Name = "Change Speed",
+				Flag = "ChangeSpeed",
+				Callback = SetSpeed,
+				AfterLoop = function()
+					local Character = Player.Character
+
+					if not Character then
+						return
+					end
+
+					local Humanoid: Humanoid = Character:FindFirstChild("Humanoid")
+
+					if not Humanoid then
+						return
+					end
+					
+					Humanoid.WalkSpeed = StarterPlayer.CharacterWalkSpeed
+				end,
+			},
+		},
+		{
+			Element = "Slider",
+			Info = {
+				Name = "Speed",
+				Range = {0, 250},
+				Increment = 1,
+				CurrentValue = StarterPlayer.CharacterWalkSpeed,
+				Flag = "Speed",
+				Callback = SetSpeed,
+			}
+		},
+		{
+			Element = "Bind",
+			Info = {
+				Name = "Change Speed Keybind",
+				Description = "Press the key to toggle the speed change",
+				CurrentBind = "Z",
+				HoldToInteract = false,
+				Flag = "ChangeSpeedKeybind",
+				Callback = function()
+					Flags.ChangeSpeed:Set({
+						CurrentValue = not Flags.ChangeSpeed.CurrentValue,
+					})
+				end,
+			}
+		},
+		{
+			Element = "Divider",
+			Info = {}
+		},
+		{
+			Element = "Toggle",
+			Info = {
+				Name = "Infinite Jump",
+				Flag = "InfJump",
+				Callback = function()
+					if Flags.InfJump.CurrentValue then
+						if not InfJumpConnection then
+							InfJumpConnection = UserInputService.JumpRequest:Connect(function()
+								if Flags.InfJump.CurrentValue and SpacePressed then
+									if Player.Character then
+										local Humanoid = Player.Character:FindFirstChildWhichIsA("Humanoid")
+										if Humanoid then
+											Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+										end
+									end
+								end
+							end)
+							HandleConnection(InfJumpConnection, "InfJumpConnection")
+						end
+					else
+						if InfJumpConnection then
+							InfJumpConnection:Disconnect()
+							InfJumpConnection = nil
+						end
+					end
+				end
+			}
+		},
+	},
+	HideIdentity = {
+		{
+			Element = "Toggle",
+			Info = {
+				Name = "Hide Identity",
+				Flag = "HideIdentity",
+				Callback = function()
+					if Flags.HideIdentity.CurrentValue and not DescendantAddedConnection then
+						for i,v in game:GetDescendants() do
+							HandleUsernameChange(v)
+						end
+
+						DescendantAddedConnection = game.DescendantAdded:Connect(HandleUsernameChange)
+
+						HandleConnection(DescendantAddedConnection, "HideIdentity")
+					elseif DescendantAddedConnection then
+						DescendantAddedConnection:Disconnect()
+						DescendantAddedConnection = nil
+
+						for Object, Text in OriginalText do
+							Object.Text = Text
+						end
+
+						OriginalText = {}
+					end
+				end,
+			}
+		},
+		{
+			Element = "Input",
+			Info = {
+				Name = "Name To Replace With",
+				Description = "The name that will replace your name in the game",
+				CurrentValue = "x2molly",
+				PlaceholderText = "New Name Here",
+				RemoveTextAfterFocusLost = false,
+				Numeric = false,
+				Enter = false,
+				MaxCharacters = nil,
+				Flag = "NameReplacement",
+			}
+		}
+	}
+}
+
+getgenv().CreateFeature = function(Tab: Tab, FeatureName: string)
+	if not Features[FeatureName] then
+		return warn(`The feature '{FeatureName}' does not exist in the Features.`)
+	end
+	
+	for _, Data in Features[FeatureName] do
+		Tab[`Create{Data.Element}`](Tab, Data.Info, Data.Info.Flag)
+	end
+end
+
+getgenv().CreateUniversalTabs = function()
+	Luna:LoadAutoloadConfig()
+
+	task.wait(1)
+
+	for FlagName: string, CurrentValue: boolean? in OriginalFlags do
+		local FlagInfo = Flags[FlagName]
+
+		if not FlagInfo then
+			continue
+		end
+
+		FlagInfo:Set({
+			CurrentValue = CurrentValue,
+		})
+	end
+
+	Notify("Welcome to x2molly's Hub", `Loaded in {math.floor((tick() - StartLoadTime) * 10) / 10}s`, "loader", "Lucide")
+end
+
+local Started = getgenv().Started
+
+if Started then
+	Started()
+end
