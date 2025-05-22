@@ -1,5 +1,4 @@
--- Robust, gentle, event-aware serverhop script for Grow a Garden
-
+-- Gentle, event-aware serverhop script for Grow a Garden
 if getgenv()._GAG_GENTLE_SERVERHOP then return end
 getgenv()._GAG_GENTLE_SERVERHOP = true
 
@@ -157,4 +156,16 @@ local function serverhop()
     end
 end
 
+-- Wait for loading screen to finish
+local function waitForGameLoad()
+    local args = {
+        [1] = Players.LocalPlayer
+    }
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("LoadScreenEvent"):FireServer(unpack(args))
+    ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Finish_Loading"):FireServer()
+    task.wait(10) -- Wait 10 seconds for everything to load
+end
+
+waitForGameLoad()
 serverhop()
