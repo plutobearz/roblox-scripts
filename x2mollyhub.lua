@@ -1,5 +1,3 @@
--- Place this in StarterGui as a LocalScript
-
 local discordInvite = "https://discord.gg/y65eQedbgu"
 
 local gui = Instance.new("ScreenGui")
