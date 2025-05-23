@@ -1,66 +1,74 @@
-local discordInvite = "https://discord.gg/y65eQedbgu"
+print("Script started")
+local plr = game.Players.LocalPlayer
+if not plr then
+    warn("LocalPlayer not found!")
+    return
+end
+print("LocalPlayer found")
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "DiscordCopyGui"
-gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-gui.ResetOnSpawn = false
+gui.Parent = plr:FindFirstChild("PlayerGui")
+if not gui.Parent then
+    warn("PlayerGui not found!")
+    return
+end
+print("ScreenGui parented")
 
-local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 440, 0, 200)
-main.Position = UDim2.new(0.5, -220, 0.5, -100)
-main.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-main.BorderSizePixel = 0
-main.AnchorPoint = Vector2.new(0.5, 0.5)
-main.Parent = gui
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 340, 0, 110)
+frame.Position = UDim2.new(0.5, -170, 0.5, -55)
+frame.BackgroundColor3 = Color3.fromRGB(25,25,35)
+frame.AnchorPoint = Vector2.new(0.5,0.5)
+print("Frame created")
 
-local message = Instance.new("TextLabel")
-message.Size = UDim2.new(1, -40, 0, 60)
-message.Position = UDim2.new(0, 20, 0, 18)
-message.BackgroundTransparency = 1
-message.TextWrapped = true
-message.TextYAlignment = Enum.TextYAlignment.Top
-message.Text = "This script is outdated and probably broken.\nJoin the Discord if you want something that actually works."
-message.Font = Enum.Font.GothamBold
-message.TextSize = 18
-message.TextColor3 = Color3.fromRGB(200, 100, 100)
-message.Parent = main
+local msg = Instance.new("TextLabel", frame)
+msg.Size = UDim2.new(1, -20, 0, 40)
+msg.Position = UDim2.new(0, 10, 0, 10)
+msg.BackgroundTransparency = 1
+msg.Text = "This script is outdated!\nJoin the Discord for updates."
+msg.Font = Enum.Font.GothamBold
+msg.TextSize = 15
+msg.TextColor3 = Color3.fromRGB(200,100,100)
+msg.TextWrapped = true
+print("TextLabel created")
 
-local discordBox = Instance.new("TextBox")
-discordBox.Size = UDim2.new(1, -40, 0, 36)
-discordBox.Position = UDim2.new(0, 20, 0, 88)
-discordBox.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-discordBox.TextColor3 = Color3.fromRGB(180, 180, 220)
-discordBox.TextSize = 17
-discordBox.Font = Enum.Font.Code
-discordBox.ClearTextOnFocus = false
-discordBox.TextEditable = false
-discordBox.Text = discordInvite
-discordBox.TextWrapped = true
-discordBox.Parent = main
+local box = Instance.new("TextBox", frame)
+box.Size = UDim2.new(0, 180, 0, 28)
+box.Position = UDim2.new(0, 10, 0, 60)
+box.BackgroundColor3 = Color3.fromRGB(20,20,30)
+box.TextColor3 = Color3.fromRGB(180,180,220)
+box.TextSize = 13
+box.Font = Enum.Font.Code
+box.ClearTextOnFocus = false
+box.TextEditable = false
+box.Text = "https://discord.gg/y65eQedbgu"
+print("TextBox created")
 
-local copyBtn = Instance.new("TextButton")
-copyBtn.Size = UDim2.new(0, 220, 0, 38)
-copyBtn.Position = UDim2.new(0.5, -110, 1, -50)
-copyBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 255)
-copyBtn.Text = "Copy Discord (If You Care)"
-copyBtn.Font = Enum.Font.GothamBold
-copyBtn.TextSize = 17
-copyBtn.TextColor3 = Color3.fromRGB(230, 230, 230)
-copyBtn.BorderSizePixel = 0
-copyBtn.Parent = main
+local btn = Instance.new("TextButton", frame)
+btn.Size = UDim2.new(0, 120, 0, 28)
+btn.Position = UDim2.new(0, 200, 0, 60)
+btn.BackgroundColor3 = Color3.fromRGB(80,120,255)
+btn.Text = "Copy Discord"
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 14
+btn.TextColor3 = Color3.fromRGB(255,255,255)
+print("Button created")
 
-copyBtn.MouseButton1Click:Connect(function()
+btn.MouseButton1Click:Connect(function()
+    print("Button clicked")
     if setclipboard then
-        setclipboard(discordInvite)
-        copyBtn.Text = "Copied! Go join or don't."
-        wait(1.5)
-        copyBtn.Text = "Copy Discord (If You Care)"
+        setclipboard(box.Text)
+        btn.Text = "Copied!"
+        wait(1)
+        btn.Text = "Copy Discord"
     else
-        discordBox:CaptureFocus()
-        discordBox.SelectionStart = 1
-        discordBox.CursorPosition = #discordBox.Text + 1
-        copyBtn.Text = "Select & Ctrl+C, genius."
-        wait(2)
-        copyBtn.Text = "Copy Discord (If You Care)"
+        box:CaptureFocus()
+        box.SelectionStart = 1
+        box.CursorPosition = #box.Text + 1
+        btn.Text = "Select & Ctrl+C!"
+        wait(1)
+        btn.Text = "Copy Discord"
     end
 end)
+print("Script finished")
