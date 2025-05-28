@@ -1,76 +1,730 @@
--- Cube Inc. Autofarm Script (Xeno Compatible)
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game.CoreGui
+-- Save home position
+local savedHomeCFrame = nil
 
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 300, 0, 150)
-Frame.Position = UDim2.new(0.5, -150, 0.5, -75)
-Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-Frame.Parent = ScreenGui
+-- Confirmation Popup
+pcall(function()
+    LocalPlayer.PlayerGui.CustomMainGui:Destroy()
+end)
+local confirmGui = Instance.new("ScreenGui")
+confirmGui.Name = "CustomMainGui"
+confirmGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+confirmGui.ResetOnSpawn = false
 
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.BackgroundTransparency = 1
-Title.Text = "Cube Autofarm"
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 22
-Title.TextColor3 = Color3.fromRGB(220, 220, 255)
-Title.Parent = Frame
+local popup = Instance.new("Frame")
+popup.Size = UDim2.new(0, 440, 0, 180)
+popup.Position = UDim2.new(0.5, -220, 0.5, -90)
+popup.BackgroundColor3 = Color3.fromRGB(35, 45, 35)
+popup.BorderSizePixel = 0
+popup.AnchorPoint = Vector2.new(0.5, 0.5)
+popup.Parent = confirmGui
 
-local StartButton = Instance.new("TextButton")
-StartButton.Size = UDim2.new(0.8, 0, 0, 40)
-StartButton.Position = UDim2.new(0.1, 0, 0.4, 0)
-StartButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-StartButton.Text = "Start Autofarm"
-StartButton.Font = Enum.Font.Gotham
-StartButton.TextSize = 18
-StartButton.TextColor3 = Color3.fromRGB(255,255,255)
-StartButton.Parent = Frame
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, -40, 1, -80)
+label.Position = UDim2.new(0, 20, 0, 20)
+label.BackgroundTransparency = 1
+label.TextWrapped = true
+label.Text = "Make sure to open and scroll through all sections of your inventory: Droppers, Upgraders, Processors, Drops, and Auras.\n\nThen click the green button below."
+label.Font = Enum.Font.GothamBold
+label.TextSize = 18
+label.TextColor3 = Color3.fromRGB(200,255,200)
+label.Parent = popup
 
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, 0, 0, 30)
-Status.Position = UDim2.new(0, 0, 0.75, 0)
-Status.BackgroundTransparency = 1
-Status.Text = "Status: Idle"
-Status.Font = Enum.Font.Gotham
-Status.TextSize = 16
-Status.TextColor3 = Color3.fromRGB(200, 255, 200)
-Status.Parent = Frame
+local doneBtn = Instance.new("TextButton")
+doneBtn.Size = UDim2.new(0, 180, 0, 46)
+doneBtn.Position = UDim2.new(0.5, -90, 1, -60)
+doneBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 100)
+doneBtn.Text = "Done"
+doneBtn.Font = Enum.Font.GothamBold
+doneBtn.TextSize = 22
+doneBtn.TextColor3 = Color3.fromRGB(255,255,255)
+doneBtn.BorderSizePixel = 0
+doneBtn.Parent = popup
 
-local autofarming = false
+-- Reset and save home location on Done
+local function saveHomeAfterRespawn()
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.Health = 0
+    end
+    local conn
+    conn = LocalPlayer.CharacterAdded:Connect(function(newchar)
+        local hrp = newchar:WaitForChild("HumanoidRootPart")
+        savedHomeCFrame = hrp.CFrame
+        conn:Disconnect()
+    end)
+end
 
-function findNearestCube()
-    local nearest, minDist
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj.Name:lower():find("cube") and obj:IsA("BasePart") then
-            local dist = (game.Players.LocalPlayer.Character.HumanoidRootPart.Position - obj.Position).Magnitude
-            if not minDist or dist < minDist then
-                nearest = obj
-                minDist = dist
+local function waitForDone()
+    local done = false
+    doneBtn.MouseButton1Click:Connect(function()
+        done = true
+    end)
+    repeat task.wait() until done
+    confirmGui:Destroy()
+    saveHomeAfterRespawn()
+end
+waitForDone()
+
+local allUpgraders = {"Foul Greed","Rewind Portal","Northern Clock","Pharaoh's Hourglass","Ore Hacker","Simulation Error","Resonance Synesthesia","Slime Refinery","Pizza Paradise","Interstellar Symphony","Raging Canyon","Fungal Overgrowth","Spawn of the Void","Misty Summit","Icelandic Mountain","Cryogenic Infuser","Moonlight Temple","Forceful Blizzard","Paradisiac Flower","Data Encryption","Perfect Lawn","Wind Tunnel","Steam Engine","Ore Polisher MK2","Creator's Playground","Cursed Siege","Skeletal Warlock","Storm Surge","Oasis Marketplace","Cold Snap","Metropunk Clockwork","Dyson Sphere","Draconic Necromancy","Steampunk Overdrive","Sunstone Pylon","Auroral Tundra","Bubblegum Stockpile","Bloodstruck Ritual","Entity Zero","Heavenly Ruins","Macroscope","Abyssal Chains","Forbidden Breeze","Extreme Heat","Hourglass","Acid Pools","Microscope","Magnetron","Caustic Lab","Billy's Fishtank","Gates of Calamity","Hydrogen Tank","Flame Blaster","Ore Polisher","Ore Soaker","Electrical Annihilation"}
+local allProcessors = {"Cyber Apocalypse","Blox Portal","Jack O' Furnace","Interval Globe","Subzero Invigorator","Temporal Tree","Tidal Temple","Hand of Poseidon","Twisting Turbulence","Idyllic Flower","Snowpond Touch","Track of Evolution","The Mothman","Oil Distillery","Signal Transmitter","Vortex Melter","Starlight Transformer","Divine Jury","Mystic Forge","Void Shrine","Daydream Reverie","Celestial Incinerator","Express Post","Lilac Processor","Basic Processor"}
+local allDroppers = {"Glitchking's Domain","Mining Operation","Digital Anomaly","Elemental Extractor","Cryonic Drill","Timekeeper's Clocktower","Shadow Veil","The Icicle","Celestial Light","Radiant Star","Arcane Rune","Nature's Embrace","Contamination","Surge Dropper","Heated Dropper","Copper Mine","Iron Mine","Utopic Flower","Digital World","Wind Turbine","Crystal Mist","Guttation Dripper","Magnetized Field","Silver Mine","Floral Obliterator","Galvanic Surge","Royal Castlekeep","Stellar Occultation","Corrosive Sentinel"}
+
+local function findMenuInventoryFrame(tab)
+    local main = LocalPlayer.PlayerGui:FindFirstChild("main")
+    if not main then return nil end
+    local menu = main:FindFirstChild("MenuFrame")
+    if not menu then return nil end
+    local inv = menu:FindFirstChild("Inventory")
+    if not inv then return nil end
+    return inv:FindFirstChild(tab)
+end
+
+local function deepFindAllInventoryItems(itemName)
+    local found = {}
+    local function scan(obj)
+        for _, child in ipairs(obj:GetChildren()) do
+            if child:IsA("TextLabel") or child:IsA("TextBox") then
+                if child.Text == itemName then
+                    table.insert(found, child)
+                end
+            end
+            scan(child)
+        end
+    end
+    local mainInv = LocalPlayer.PlayerGui:FindFirstChild("main")
+    if mainInv then
+        for _, sub in ipairs(mainInv:GetDescendants()) do
+            if sub.Name == "InventoryList" then
+                scan(sub)
             end
         end
     end
-    return nearest
+    return found
 end
 
-StartButton.MouseButton1Click:Connect(function()
-    autofarming = not autofarming
-    StartButton.Text = autofarming and "Stop Autofarm" or "Start Autofarm"
-    Status.Text = autofarming and "Status: Running..." or "Status: Idle"
-    if autofarming then
-        spawn(function()
-            while autofarming do
-                local cube = findNearestCube()
-                if cube then
-                    game.Players.LocalPlayer.Character:MoveTo(cube.Position + Vector3.new(0,3,0))
-                    wait(0.5)
-                else
-                    Status.Text = "Status: No cubes found"
-                    wait(1)
+local function deepFindAllDropAuraItems(itemName, tab)
+    local found = {}
+    local invFrame = findMenuInventoryFrame(tab)
+    if invFrame then
+        local scroll = invFrame:FindFirstChild("Scroll")
+        if scroll then
+            for _, grid in ipairs(scroll:GetChildren()) do
+                if grid:IsA("Frame") and grid:FindFirstChild("Inner") then
+                    local inner = grid.Inner
+                    local imageLabel = inner:FindFirstChildWhichIsA("ImageLabel")
+                    if imageLabel and imageLabel.Name == itemName then
+                        table.insert(found, grid)
+                    end
                 end
-                wait(0.1)
+            end
+        end
+    end
+    return found
+end
+
+-- GUI Setup
+local gui = Instance.new("ScreenGui")
+gui.Name = "CustomMainGui"
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+gui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 700, 0, 600)
+frame.Position = UDim2.new(0.5, -350, 0.5, -300)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+frame.BorderSizePixel = 0
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 36)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "X2Molly's Hub"
+title.Font = Enum.Font.GothamBlack
+title.TextSize = 28
+title.TextColor3 = Color3.fromRGB(255, 200, 255)
+title.TextStrokeTransparency = 0.7
+title.Parent = frame
+
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 36)
+topBar.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+topBar.BorderSizePixel = 0
+topBar.Position = UDim2.new(0, 0, 0, 36)
+topBar.Parent = frame
+
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 32, 0, 32)
+closeBtn.Position = UDim2.new(1, -36, 0, 2)
+closeBtn.BackgroundColor3 = Color3.fromRGB(90, 40, 40)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 18
+closeBtn.TextColor3 = Color3.fromRGB(255, 200, 200)
+closeBtn.BorderSizePixel = 0
+closeBtn.Parent = topBar
+
+local collapseBtn = Instance.new("TextButton")
+collapseBtn.Size = UDim2.new(0, 32, 0, 32)
+collapseBtn.Position = UDim2.new(1, -72, 0, 2)
+collapseBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+collapseBtn.Text = "-"
+collapseBtn.Font = Enum.Font.GothamBold
+collapseBtn.TextSize = 22
+collapseBtn.TextColor3 = Color3.fromRGB(200, 200, 255)
+collapseBtn.BorderSizePixel = 0
+collapseBtn.Parent = topBar
+
+local outputBox = Instance.new("TextBox")
+outputBox.Size = UDim2.new(1, -20, 0, 70)
+outputBox.Position = UDim2.new(0, 10, 1, -80)
+outputBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+outputBox.TextColor3 = Color3.fromRGB(200,255,200)
+outputBox.TextSize = 15
+outputBox.TextXAlignment = Enum.TextXAlignment.Left
+outputBox.TextYAlignment = Enum.TextYAlignment.Top
+outputBox.Font = Enum.Font.Code
+outputBox.ClearTextOnFocus = false
+outputBox.TextEditable = false
+outputBox.MultiLine = true
+outputBox.TextWrapped = true
+outputBox.Text = "Output:\n"
+outputBox.Parent = frame
+
+local function log(msg)
+    outputBox.Text = outputBox.Text .. tostring(msg) .. "\n"
+    outputBox.CursorPosition = #outputBox.Text + 1
+    print("[GUI OUTPUT]", msg)
+end
+
+local tabBar = Instance.new("Frame")
+tabBar.Size = UDim2.new(1, 0, 0, 36)
+tabBar.Position = UDim2.new(0, 0, 0, 72)
+tabBar.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+tabBar.BorderSizePixel = 0
+tabBar.Parent = frame
+
+local tabs = {"Cube Autofarm", "Dupe [Visual]", "AddItems [Broken]"}
+local tabFrames = {}
+
+for i, tabName in ipairs(tabs) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 230, 1, 0)
+    btn.Position = UDim2.new(0, (i - 1) * 230, 0, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    btn.Text = tabName
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 16
+    btn.TextColor3 = Color3.fromRGB(220, 220, 255)
+    btn.BorderSizePixel = 0
+    btn.Parent = tabBar
+
+    local tabFrame = Instance.new("Frame")
+    tabFrame.Size = UDim2.new(1, 0, 1, -188)
+    tabFrame.Position = UDim2.new(0, 0, 0, 108)
+    tabFrame.BackgroundTransparency = 1
+    tabFrame.Visible = (i == 1)
+    tabFrame.Parent = frame
+    tabFrames[tabName] = tabFrame
+
+    btn.MouseButton1Click:Connect(function()
+        for _, tf in pairs(tabFrames) do tf.Visible = false end
+        tabFrame.Visible = true
+    end)
+end
+
+local autofarmFrame = tabFrames["Cube Autofarm"]
+
+local startStopBtn = Instance.new("TextButton")
+startStopBtn.Size = UDim2.new(0, 170, 0, 36)
+startStopBtn.Position = UDim2.new(0, 20, 0, 20)
+startStopBtn.BackgroundColor3 = Color3.fromRGB(40, 170, 90)
+startStopBtn.TextColor3 = Color3.new(1, 1, 1)
+startStopBtn.Font = Enum.Font.GothamBold
+startStopBtn.TextSize = 18
+startStopBtn.Text = "Start Autofarm"
+startStopBtn.BorderSizePixel = 0
+startStopBtn.Parent = autofarmFrame
+
+local goHomeButton2 = Instance.new("TextButton")
+goHomeButton2.Text = "Go Home"
+goHomeButton2.Size = UDim2.new(0, 120, 0, 36)
+goHomeButton2.Position = UDim2.new(0, 200, 0, 20)
+goHomeButton2.BackgroundColor3 = Color3.fromRGB(160, 80, 220)
+goHomeButton2.Font = Enum.Font.GothamBold
+goHomeButton2.TextSize = 18
+goHomeButton2.TextColor3 = Color3.fromRGB(255,255,255)
+goHomeButton2.BorderSizePixel = 0
+goHomeButton2.Parent = autofarmFrame
+goHomeButton2.MouseButton1Click:Connect(function()
+    if savedHomeCFrame then
+        local char = LocalPlayer.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CFrame = savedHomeCFrame
+        end
+    else
+        log("Home location not saved yet! Press Done and respawn first.")
+    end
+end)
+
+local discordBtn = Instance.new("TextButton")
+discordBtn.Size = UDim2.new(0, 120, 0, 36)
+discordBtn.Position = UDim2.new(0, 340, 0, 20)
+discordBtn.BackgroundColor3 = Color3.fromRGB(160, 80, 220)
+discordBtn.Text = "Discord"
+discordBtn.Font = Enum.Font.GothamBold
+discordBtn.TextSize = 18
+discordBtn.TextColor3 = Color3.fromRGB(255,255,255)
+discordBtn.BorderSizePixel = 0
+discordBtn.Parent = autofarmFrame
+
+discordBtn.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard("https://discord.gg/y65eQedbgu")
+        discordBtn.Text = "Copied!"
+        wait(1)
+        discordBtn.Text = "Discord"
+    else
+        discordBtn.Text = "No Clipboard!"
+        wait(1)
+        discordBtn.Text = "Discord"
+    end
+end)
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -40, 0, 28)
+statusLabel.Position = UDim2.new(0, 20, 0, 60)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Idle."
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 16
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+statusLabel.TextWrapped = true
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = autofarmFrame
+
+local running = false
+startStopBtn.MouseButton1Click:Connect(function()
+    running = not running
+    if running then
+        startStopBtn.Text = "Stop Autofarm"
+        startStopBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+        statusLabel.Text = "Autofarming cubes..."
+        task.spawn(function()
+            while running do
+                local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if not hrp then
+                    statusLabel.Text = "No HumanoidRootPart!"
+                    log("No HumanoidRootPart!")
+                    break
+                end
+
+                local dropsFolder = ReplicatedStorage:FindFirstChild("drops")
+                if not dropsFolder then
+                    statusLabel.Text = "No drops folder in ReplicatedStorage!"
+                    log("No drops folder in ReplicatedStorage!")
+                    break
+                end
+
+                local validNames = {}
+                for _, drop in ipairs(dropsFolder:GetChildren()) do
+                    validNames[drop.Name] = true
+                end
+
+                local dropsInWorkspace = {}
+                for _, obj in ipairs(workspace:GetChildren()) do
+                    if validNames[obj.Name] then
+                        if obj:IsA("BasePart") then
+                            table.insert(dropsInWorkspace, obj)
+                        elseif obj:IsA("Model") and obj.PrimaryPart then
+                            table.insert(dropsInWorkspace, obj.PrimaryPart)
+                        elseif obj:IsA("Model") then
+                            local part = obj:FindFirstChildWhichIsA("BasePart")
+                            if part then table.insert(dropsInWorkspace, part) end
+                        end
+                    end
+                end
+
+                if #dropsInWorkspace == 0 then
+                    statusLabel.Text = "No cubes found. Returning home, will retry in 10s..."
+                    log("No cubes found. Going home, waiting 10s.")
+                    if savedHomeCFrame then
+                        local char = LocalPlayer.Character
+                        if char and char:FindFirstChild("HumanoidRootPart") then
+                            char.HumanoidRootPart.CFrame = savedHomeCFrame
+                        end
+                    end
+                    local waited = 0
+                    while waited < 10 and running do
+                        wait(1)
+                        waited = waited + 1
+                    end
+                else
+                    for i, drop in ipairs(dropsInWorkspace) do
+                        if not running then break end
+                        if drop and drop.Parent then
+                            hrp.CFrame = drop.CFrame + Vector3.new(0, 3, 0)
+                            statusLabel.Text = "Teleported to cube "..i.." / "..#dropsInWorkspace
+                            log("Teleported to cube "..i.." / "..#dropsInWorkspace)
+                            wait(0.3)
+                        end
+                    end
+                    statusLabel.Text = "Waiting for new cubes..."
+                    wait(0.7)
+                end
+            end
+            startStopBtn.Text = "Start Autofarm"
+            startStopBtn.BackgroundColor3 = Color3.fromRGB(40, 170, 90)
+            statusLabel.Text = "Idle."
+        end)
+    else
+        startStopBtn.Text = "Start Autofarm"
+        startStopBtn.BackgroundColor3 = Color3.fromRGB(40, 170, 90)
+        statusLabel.Text = "Stopped."
+        log("Autofarm stopped.")
+        wait(0.7)
+        statusLabel.Text = "Idle."
+    end
+end)
+
+-- DUPE TAB
+local dupeFrame = tabFrames["Dupe [Visual]"]
+local dupeLabel = Instance.new("TextLabel")
+dupeLabel.Size = UDim2.new(1, 0, 0, 30)
+dupeLabel.Position = UDim2.new(0, 0, 0, 10)
+dupeLabel.BackgroundTransparency = 1
+dupeLabel.Text = "Dupe [Visual]"
+dupeLabel.Font = Enum.Font.GothamBold
+dupeLabel.TextSize = 18
+dupeLabel.TextColor3 = Color3.fromRGB(255,255,255)
+dupeLabel.Parent = dupeFrame
+
+local dupeScroll = Instance.new("ScrollingFrame")
+dupeScroll.Size = UDim2.new(1, -20, 1, -50)
+dupeScroll.Position = UDim2.new(0, 10, 0, 50)
+dupeScroll.BackgroundColor3 = Color3.fromRGB(40,40,50)
+dupeScroll.BorderSizePixel = 0
+dupeScroll.ScrollBarThickness = 8
+dupeScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+dupeScroll.CanvasSize = UDim2.new(0,0,0,0)
+dupeScroll.Parent = dupeFrame
+
+local function populateDupeTab()
+    dupeScroll:ClearAllChildren()
+    local dupeListLayout = Instance.new("UIListLayout")
+    dupeListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    dupeListLayout.Padding = UDim.new(0, 4)
+    dupeListLayout.Parent = dupeScroll
+    local foundAny = false
+
+    local function createItemRowDupe(itemType, itemName, getCountFunc, allFoundObjs)
+        local row = Instance.new("Frame")
+        row.Size = UDim2.new(1, -10, 0, 38)
+        row.BackgroundTransparency = 0.2
+        row.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+        row.Parent = dupeScroll
+
+        local nameLbl = Instance.new("TextLabel")
+        nameLbl.Size = UDim2.new(0, 320, 1, 0)
+        nameLbl.Position = UDim2.new(0, 10, 0, 0)
+        nameLbl.BackgroundTransparency = 1
+        nameLbl.Text = string.format("[%s] %s", itemType, itemName)
+        nameLbl.Font = Enum.Font.Gotham
+        nameLbl.TextSize = 15
+        nameLbl.TextColor3 = Color3.fromRGB(220,230,255)
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.Parent = row
+
+        local countLbl = Instance.new("TextLabel")
+        countLbl.Size = UDim2.new(0, 40, 1, 0)
+        countLbl.Position = UDim2.new(1, -110, 0, 0)
+        countLbl.BackgroundTransparency = 1
+        local function updateCount()
+            local count = getCountFunc()
+            countLbl.Text = tostring(count or 0)
+            local num = tonumber(count)
+            if num and num > 0 then
+                countLbl.TextColor3 = Color3.fromRGB(0,255,0)
+            else
+                countLbl.TextColor3 = Color3.fromRGB(255,255,0)
+            end
+        end
+        updateCount()
+        countLbl.Parent = row
+
+        local dupeBtn = Instance.new("TextButton")
+        dupeBtn.Size = UDim2.new(0, 60, 0, 28)
+        dupeBtn.Position = UDim2.new(1, -60, 0, 5)
+        dupeBtn.BackgroundColor3 = Color3.fromRGB(90, 90, 180)
+        dupeBtn.Text = "Dupe"
+        dupeBtn.Font = Enum.Font.GothamBold
+        dupeBtn.TextSize = 14
+        dupeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+        dupeBtn.BorderSizePixel = 0
+        dupeBtn.Parent = row
+
+        dupeBtn.MouseButton1Click:Connect(function()
+            for _, obj in ipairs(allFoundObjs) do
+                if obj:IsA("TextLabel") or obj:IsA("TextBox") then
+                    local details = obj.Parent.Parent:FindFirstChild("Details")
+                    if details and details:FindFirstChild("RarityQuantity") then
+                        local countLbl = details.RarityQuantity
+                        local n = tonumber(countLbl.Text)
+                        if n then
+                            countLbl.Text = tostring(n*2)
+                            log("Set "..itemType.." "..itemName.." to "..countLbl.Text)
+                        end
+                    end
+                elseif obj:IsA("Frame") and obj:FindFirstChild("Count") then
+                    local cnt = obj.Count
+                    local n = tonumber(cnt.Text)
+                    if n then
+                        cnt.Text = tostring(n*2)
+                        log("Set "..itemType.." "..itemName.." to "..cnt.Text)
+                    end
+                end
+            end
+            updateCount()
+        end)
+
+        task.spawn(function()
+            while row.Parent do
+                updateCount()
+                wait(1)
             end
         end)
     end
+
+    for _, name in ipairs(allDroppers) do
+        local foundObjs = deepFindAllInventoryItems(name)
+        if #foundObjs > 0 then
+            local function getCount()
+                local details = foundObjs[1].Parent.Parent:FindFirstChild("Details")
+                return details and details:FindFirstChild("RarityQuantity") and details.RarityQuantity.Text or "?"
+            end
+            createItemRowDupe("Dropper", name, getCount, foundObjs)
+            foundAny = true
+        end
+    end
+    for _, name in ipairs(allUpgraders) do
+        local foundObjs = deepFindAllInventoryItems(name)
+        if #foundObjs > 0 then
+            local function getCount()
+                local details = foundObjs[1].Parent.Parent:FindFirstChild("Details")
+                return details and details:FindFirstChild("RarityQuantity") and details.RarityQuantity.Text or "?"
+            end
+            createItemRowDupe("Upgrader", name, getCount, foundObjs)
+            foundAny = true
+        end
+    end
+    for _, name in ipairs(allProcessors) do
+        local foundObjs = deepFindAllInventoryItems(name)
+        if #foundObjs > 0 then
+            local function getCount()
+                local details = foundObjs[1].Parent.Parent:FindFirstChild("Details")
+                return details and details:FindFirstChild("RarityQuantity") and details.RarityQuantity.Text or "?"
+            end
+            createItemRowDupe("Processor", name, getCount, foundObjs)
+            foundAny = true
+        end
+    end
+
+    for _, tab in ipairs({"Drops", "Auras"}) do
+        local invFrame = findMenuInventoryFrame(tab)
+        if invFrame then
+            local scroll = invFrame:FindFirstChild("Scroll")
+            if scroll then
+                for _, grid in ipairs(scroll:GetChildren()) do
+                    if grid:IsA("Frame") and grid:FindFirstChild("Inner") then
+                        local inner = grid.Inner
+                        local imageLabel = inner:FindFirstChildWhichIsA("ImageLabel")
+                        local itemName = imageLabel and imageLabel.Name or grid.Name
+                        local cnt = grid:FindFirstChild("Count")
+                        local function getCount()
+                            return cnt and cnt.Text or "?"
+                        end
+                        createItemRowDupe(tab:sub(1,#tab-1), itemName, getCount, {grid})
+                        foundAny = true
+                    end
+                end
+            end
+        end
+    end
+
+    if not foundAny then
+        createItemRowDupe("Info", "No items found! Did you open and scroll through all inventory sections?", function() return 0 end, {})
+    end
+end
+
+local refreshBtn = Instance.new("TextButton")
+refreshBtn.Size = UDim2.new(0, 90, 0, 28)
+refreshBtn.Position = UDim2.new(1, -100, 0, 10)
+refreshBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 255)
+refreshBtn.Text = "Refresh"
+refreshBtn.Font = Enum.Font.GothamBold
+refreshBtn.TextSize = 15
+refreshBtn.TextColor3 = Color3.fromRGB(255,255,255)
+refreshBtn.BorderSizePixel = 0
+refreshBtn.Parent = dupeFrame
+refreshBtn.MouseButton1Click:Connect(populateDupeTab)
+
+populateDupeTab()
+
+-- ADDITEMS TAB
+local addTabFrame = tabFrames["AddItems [Broken]"]
+local addLabel = Instance.new("TextLabel")
+addLabel.Size = UDim2.new(1, 0, 0, 30)
+addLabel.Position = UDim2.new(0, 0, 0, 10)
+addLabel.BackgroundTransparency = 1
+addLabel.Text = "AddItems [Broken]"
+addLabel.Font = Enum.Font.GothamBold
+addLabel.TextSize = 18
+addLabel.TextColor3 = Color3.fromRGB(255,255,255)
+addLabel.Parent = addTabFrame
+
+local addScroll = Instance.new("ScrollingFrame")
+addScroll.Size = UDim2.new(1, -20, 1, -90)
+addScroll.Position = UDim2.new(0, 10, 0, 50)
+addScroll.BackgroundColor3 = Color3.fromRGB(40,40,50)
+addScroll.BorderSizePixel = 0
+addScroll.ScrollBarThickness = 8
+addScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+addScroll.CanvasSize = UDim2.new(0,0,0,0)
+addScroll.Parent = addTabFrame
+
+local addListLayout = Instance.new("UIListLayout")
+addListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+addListLayout.Padding = UDim.new(0, 4)
+addListLayout.Parent = addScroll
+
+local addItemBtn = Instance.new("TextButton")
+addItemBtn.Size = UDim2.new(0, 120, 0, 36)
+addItemBtn.Position = UDim2.new(0.5, -60, 1, -40)
+addItemBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 100)
+addItemBtn.Text = "Add Item"
+addItemBtn.Font = Enum.Font.GothamBold
+addItemBtn.TextSize = 18
+addItemBtn.TextColor3 = Color3.fromRGB(255,255,255)
+addItemBtn.BorderSizePixel = 0
+addItemBtn.Parent = addTabFrame
+addItemBtn.Active = false
+
+local allModels = {}
+for _, type in ipairs({"Dropper", "Upgrader", "Processor"}) do
+    for _, name in ipairs(type == "Dropper" and allDroppers or type == "Upgrader" and allUpgraders or allProcessors) do
+        table.insert(allModels, {Type=type, Name=name})
+    end
+end
+local drops = ReplicatedStorage:FindFirstChild("drops")
+if drops then
+    for _, d in ipairs(drops:GetChildren()) do
+        table.insert(allModels, {Type="Drop", Name=d.Name})
+    end
+end
+local auras = ReplicatedStorage:FindFirstChild("auras")
+if auras then
+    for _, d in ipairs(auras:GetChildren()) do
+        table.insert(allModels, {Type="Aura", Name=d.Name})
+    end
+end
+
+local selected = nil
+local itemButtons = {}
+for _, item in ipairs(allModels) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 32)
+    btn.Position = UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(50,50,70)
+    btn.Text = "["..item.Type.."] "..item.Name
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 15
+    btn.TextColor3 = Color3.fromRGB(220,230,255)
+    btn.BorderSizePixel = 0
+    btn.Parent = addScroll
+
+    btn.MouseButton1Click:Connect(function()
+        for _, b in ipairs(itemButtons) do
+            b.BackgroundColor3 = Color3.fromRGB(50,50,70)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(100,180,100)
+        selected = item
+        addItemBtn.Active = true
+        addItemBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 100)
+    end)
+    table.insert(itemButtons, btn)
+end
+
+addItemBtn.MouseButton1Click:Connect(function()
+    if not selected then log("No item selected!"); return end
+    local type, name = selected.Type, selected.Name
+
+    if type == "Drop" or type == "Aura" then
+        local grids = deepFindAllDropAuraItems(name, type == "Drop" and "Drops" or "Auras")
+        if #grids > 0 then
+            for _, grid in ipairs(grids) do
+                local cnt = grid:FindFirstChild("Count")
+                if cnt then
+                    local n = tonumber(cnt.Text)
+                    if n then
+                        cnt.Text = tostring(n+1)
+                        log("Incremented "..type.." "..name.." to "..cnt.Text)
+                    end
+                end
+            end
+        else
+            log("Add new "..type.." not implemented (need a template grid to clone).")
+        end
+        return
+    end
+
+    local foundObjs = deepFindAllInventoryItems(name)
+    if #foundObjs > 0 then
+        for _, obj in ipairs(foundObjs) do
+            local details = obj.Parent.Parent:FindFirstChild("Details")
+            if details and details:FindFirstChild("RarityQuantity") then
+                local countLbl = details.RarityQuantity
+                local n = tonumber(countLbl.Text)
+                if n then
+                    countLbl.Text = tostring(n+1)
+                    log("Incremented "..type.." "..name.." to "..countLbl.Text)
+                end
+            end
+        end
+    else
+        local mainInv = LocalPlayer.PlayerGui:FindFirstChild("main")
+        if mainInv then
+            for _, invList in ipairs(mainInv:GetDescendants()) do
+                if invList.Name == "InventoryList" then
+                    for _, itemFrame in ipairs(invList:GetChildren()) do
+                        if itemFrame:IsA("Frame") and itemFrame.Name == "Frame" then
+                            local template = itemFrame:Clone()
+                            if template:FindFirstChild("TextMiddle") and template.TextMiddle:FindFirstChild("Main") then
+                                template.TextMiddle.Main.Text = name
+                            end
+                            if template:FindFirstChild("Details") and template.Details:FindFirstChild("RarityQuantity") then
+                                template.Details.RarityQuantity.Text = "1"
+                            end
+                            template.Parent = invList
+                            log("Added new "..type.." "..name)
+                            return
+                        end
+                    end
+                end
+            end
+        end
+        log("No template frame found to add "..type.." "..name..".")
+    end
+    addItemBtn.Text = "Added!"
+    addItemBtn.BackgroundColor3 = Color3.fromRGB(80, 120, 80)
+    wait(1)
+    addItemBtn.Text = "Add Item"
+    addItemBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 100)
 end)
