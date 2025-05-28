@@ -1,0 +1,77 @@
+-- Cube Inc. Autofarm Script (Cube Autofarm Only)
+
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.CoreGui
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 300, 0, 150)
+Frame.Position = UDim2.new(0.5, -150, 0.5, -75)
+Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+Frame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundTransparency = 1
+Title.Text = "Cube Autofarm"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 22
+Title.TextColor3 = Color3.fromRGB(220, 220, 255)
+Title.Parent = Frame
+
+local StartButton = Instance.new("TextButton")
+StartButton.Size = UDim2.new(0.8, 0, 0, 40)
+StartButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+StartButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+StartButton.Text = "Start Autofarm"
+StartButton.Font = Enum.Font.Gotham
+StartButton.TextSize = 18
+StartButton.TextColor3 = Color3.fromRGB(255,255,255)
+StartButton.Parent = Frame
+
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, 0, 0, 30)
+Status.Position = UDim2.new(0, 0, 0.75, 0)
+Status.BackgroundTransparency = 1
+Status.Text = "Status: Idle"
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 16
+Status.TextColor3 = Color3.fromRGB(200, 255, 200)
+Status.Parent = Frame
+
+local autofarming = false
+
+function findNearestCube()
+    local nearest, minDist
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name:lower():find("cube") and obj:IsA("BasePart") then
+            local dist = (game.Players.LocalPlayer.Character.HumanoidRootPart.Position - obj.Position).Magnitude
+            if not minDist or dist < minDist then
+                nearest = obj
+                minDist = dist
+            end
+        end
+    end
+    return nearest
+end
+
+StartButton.MouseButton1Click:Connect(function()
+    autofarming = not autofarming
+    StartButton.Text = autofarming and "Stop Autofarm" or "Start Autofarm"
+    Status.Text = autofarming and "Status: Running..." or "Status: Idle"
+    if autofarming then
+        spawn(function()
+            while autofarming do
+                local cube = findNearestCube()
+                if cube then
+                    game.Players.LocalPlayer.Character:MoveTo(cube.Position + Vector3.new(0,3,0))
+                    wait(0.5)
+                else
+                    Status.Text = "Status: No cubes found"
+                    wait(1)
+                end
+                wait(0.1)
+            end
+        end)
+    end
+end)
