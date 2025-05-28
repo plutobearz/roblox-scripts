@@ -1,6 +1,5 @@
--- Cube Inc. Autofarm Script (Cube Autofarm Only)
+-- Cube Inc. Autofarm Script (Xeno Compatible)
 
--- Create GUI
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game.CoreGui
 
